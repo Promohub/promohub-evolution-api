@@ -140,6 +140,33 @@ const numberDefinition: JSONSchema7Definition = {
   description: 'Invalid format',
 };
 
+export const textMessageToListSchema: JSONSchema7 = {
+  $id: v4(),
+  type: 'object',
+  properties: {
+    numbers: {
+      type: 'array',
+      minItems: 1,
+      uniqueItems: true,
+      items: {
+        type: 'string',
+        pattern: '^\\d+',
+        description: '"numbers" must be an array of numeric strings',
+      },
+    },
+    options: { ...optionsSchema },
+    textMessage: {
+      type: 'object',
+      properties: {
+        text: { type: 'string' },
+      },
+      required: ['text'],
+      ...isNotEmpty('text'),
+    },
+  },
+  required: ['textMessage', 'numbers'],
+};
+
 export const textMessageSchema: JSONSchema7 = {
   $id: v4(),
   type: 'object',

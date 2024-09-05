@@ -14,6 +14,7 @@ import {
   stickerMessageSchema,
   templateMessageSchema,
   textMessageSchema,
+  textMessageToListSchema,
 } from '../../validate/validate.schema';
 import { RouterBroker } from '../abstract/abstract.router';
 import {
@@ -29,6 +30,7 @@ import {
   SendStickerDto,
   SendTemplateDto,
   SendTextDto,
+  SendTextToListDto,
 } from '../dto/sendMessage.dto';
 import { sendMessageController } from '../server.module';
 import { HttpStatus } from './index.router';
@@ -55,6 +57,22 @@ export class MessageRouter extends RouterBroker {
 
         return res.status(HttpStatus.CREATED).json(response);
       })
+      .post(this.routerPath('sendTextToList'), ...guards, async (req, res) => {
+        logger.verbose('request received in sendTextToList');
+        logger.verbose('request body: ');
+        logger.verbose(req.body);
+
+        logger.verbose('request query: ');
+        logger.verbose(req.query);
+        const response = await this.dataValidate<SendTextToListDto>({
+          request: req,
+          schema: textMessageToListSchema,
+          ClassRef: SendTextToListDto,
+          execute: (instance, data) => sendMessageController.sendTextToList(instance, data),
+        });
+
+        return res.status(HttpStatus.CREATED).json(response);
+      })      
       .post(this.routerPath('sendMedia'), ...guards, async (req, res) => {
         logger.verbose('request received in sendMedia');
         logger.verbose('request body: ');

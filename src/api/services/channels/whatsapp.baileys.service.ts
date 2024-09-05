@@ -119,6 +119,7 @@ import {
   SendStatusDto,
   SendStickerDto,
   SendTextDto,
+  SendTextToListDto,
   StatusMessage,
 } from '../../dto/sendMessage.dto';
 import { chatwootImport } from '../../integrations/chatwoot/utils/chatwoot-import-helper';
@@ -158,7 +159,7 @@ export class BaileysStartupService extends ChannelStartupService {
 
   private authStateProvider: AuthStateProvider;
   private readonly msgRetryCounterCache: CacheStore = new NodeCache();
-  private readonly userDevicesCache: CacheStore = new NodeCache();
+  private readonly userDevicesCache: CacheStore = new NodeCache({ stdTTL: 50, checkperiod: 60 });
   private endSession = false;
   private logBaileys = this.configService.get<Log>('LOG').BAILEYS;
 
@@ -598,7 +599,7 @@ export class BaileysStartupService extends ChannelStartupService {
       retryRequestDelayMs: 350,
       maxMsgRetryCount: 4,
       fireInitQueries: true,
-      connectTimeoutMs: 20_000,
+      connectTimeoutMs: 120_000,
       keepAliveIntervalMs: 30_000,
       qrTimeout: 45_000,
       defaultQueryTimeoutMs: undefined,
@@ -618,7 +619,7 @@ export class BaileysStartupService extends ChannelStartupService {
         return this.historySyncNotification(msg);
       },
       userDevicesCache: this.userDevicesCache,
-      transactionOpts: { maxCommitRetries: 5, delayBetweenTriesMs: 2500 },
+      transactionOpts: { maxCommitRetries: 20, delayBetweenTriesMs: 4000 },
       patchMessageBeforeSending(message) {
         if (
           message.deviceSentMessage?.message?.listMessage?.listType === proto.Message.ListMessage.ListType.PRODUCT_LIST
@@ -2041,6 +2042,28 @@ export class BaileysStartupService extends ChannelStartupService {
       data?.options,
       isChatwoot,
     );
+  }
+
+  public async textMessageToList(data: SendTextToListDto, isChatwoot = false) {
+    this.logger.verbose('Sending text message to list');
+
+    // Usando map para criar uma lista de promessas para cada número
+    const promises = data.numbers.map(async (number) => {
+      const res = await this.sendMessageWithTyping(
+        number,
+        {
+          conversation: data.textMessage.text,
+        },
+        data?.options,
+        isChatwoot,
+      );
+      return res; // Retorna o resultado da chamada
+    });
+
+    // Aguarda todas as promessas serem resolvidas
+    const results = await Promise.all(promises);
+
+    return results; // Retorna o array com os resultados
   }
 
   public async pollMessage(data: SendPollDto) {

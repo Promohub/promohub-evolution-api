@@ -52,7 +52,7 @@ DEL_TEMP_INSTANCES: true # Delete instances with status closed on start
 # Seesion Files Providers
 # Provider responsible for managing credentials files and WhatsApp sessions.
 PROVIDER:
-  ENABLED: true
+  ENABLED: false
   HOST: 127.0.0.1
   PORT: 5656
   PREFIX: evolution
@@ -139,8 +139,8 @@ WA_BUSINESS:
 WEBHOOK:
   # Define a global webhook that will listen for enabled events from all instances
   GLOBAL:
-    URL: <url>
-    ENABLED: false
+    URL: http://localhost:5000/webhook
+    ENABLED: true
     # With this option activated, you work with a url per webhook event, respecting the global url and the name of each event
     WEBHOOK_BY_EVENTS: false
   # Automatically maps webhook paths
@@ -208,13 +208,13 @@ CHATWOOT:
 # Cache to optimize application performance
 CACHE:
   REDIS:
-    ENABLED: false
+    ENABLED: true
     URI: "redis://localhost:6379"
     PREFIX_KEY: "evolution"
     TTL: 604800
-    SAVE_INSTANCES: false
+    SAVE_INSTANCES: true
   LOCAL:
-    ENABLED: false
+    ENABLED: true
     TTL: 86400
 
 # Defines an authentication type for the api

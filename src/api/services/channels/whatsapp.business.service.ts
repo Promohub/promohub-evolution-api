@@ -21,6 +21,7 @@ import {
   SendReactionDto,
   SendTemplateDto,
   SendTextDto,
+  SendTextToListDto,
 } from '../../dto/sendMessage.dto';
 import { ContactRaw, MessageRaw, MessageUpdateRaw, SettingsRaw } from '../../models';
 import { ProviderFiles } from '../../provider/sessions';
@@ -897,6 +898,29 @@ export class BusinessStartupService extends ChannelStartupService {
     );
     return res;
   }
+
+  public async textMessageToList(data: SendTextToListDto, isChatwoot = false) {
+    this.logger.verbose('Sending text message to list');
+  
+    // Usando map para retornar as promessas de envio de mensagens
+    const promises = data.numbers.map(async (number) => {
+      const res = await this.sendMessageWithTyping(
+        number,
+        {
+          conversation: data.textMessage.text,
+        },
+        data?.options,
+        isChatwoot,
+      );
+      return res; // Retorna o resultado da chamada
+    });
+  
+    // Aguarda todas as promessas serem resolvidas
+    const results = await Promise.all(promises);
+  
+    return results; // Retorna o array com os resultados
+  }
+  
 
   private async getIdMedia(mediaMessage: any) {
     const integration = await this.findIntegration();

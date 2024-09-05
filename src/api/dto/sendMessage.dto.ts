@@ -50,6 +50,11 @@ class PollMessage {
 export class SendTextDto extends Metadata {
   textMessage: TextMessage;
 }
+
+export class SendTextToListDto extends OptionsMessage {
+  numbers: string[];
+  textMessage: TextMessage;
+}
 export class SendPresence extends Metadata {
   textMessage: TextMessage;
 }
