@@ -46,6 +46,12 @@ export class Metadata {
   encoding?: boolean;
 }
 
+export class ForwardTextDto {
+  messageJid: string;
+  linkPreview?: boolean;
+  number: string;
+}
+
 export class SendTextDto extends Metadata {
   text: string;
 }

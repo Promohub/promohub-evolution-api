@@ -54,6 +54,17 @@ const quotedOptionsSchema: JSONSchema7 = {
   },
 };
 
+export const forwardMessageSchema: JSONSchema7 = {
+  $id: v4(),
+  type: 'object',
+  properties: {
+    number: { ...numberDefinition },
+    messageJid: { type: 'string' },
+    linkPreview: { type: 'boolean' },
+  },
+  required: ['number', 'messageJid'],
+};
+
 export const textMessageSchema: JSONSchema7 = {
   $id: v4(),
   type: 'object',
