@@ -1725,7 +1725,7 @@ export class BaileysStartupService extends ChannelStartupService {
       }
     }
 
-    if (message.forward?.message['extendedTextMessage'] || message.forward?.message['conversation']) {
+    if (message.forward) {
       return await this.client.sendMessage(
         sender,
         {
