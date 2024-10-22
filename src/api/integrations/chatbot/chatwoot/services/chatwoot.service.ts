@@ -954,9 +954,10 @@ export class ChatwootService {
       const replyToIds = await this.getReplyToIds(messageBody, instance);
 
       if (replyToIds.in_reply_to || replyToIds.in_reply_to_external_id) {
-        data.append('content_attributes', {
+        const content = JSON.stringify({
           ...replyToIds,
         });
+        data.append('content_attributes', content);
       }
     }
 
@@ -1136,10 +1137,26 @@ export class ChatwootService {
     }
   }
 
-  public async onSendMessageError(instance: InstanceDto, conversation: number, error?: string) {
+  public async onSendMessageError(instance: InstanceDto, conversation: number, error?: any) {
+    this.logger.verbose(`onSendMessageError ${JSON.stringify(error)}`);
+
     const client = await this.clientCw(instance);
 
     if (!client) {
+      return;
+    }
+
+    if (error && error?.status === 400 && error?.message[0]?.exists === false) {
+      client.messages.create({
+        accountId: this.provider.accountId,
+        conversationId: conversation,
+        data: {
+          content: `${i18next.t('cw.message.numbernotinwhatsapp')}`,
+          message_type: 'outgoing',
+          private: true,
+        },
+      });
+
       return;
     }
 
@@ -1148,7 +1165,7 @@ export class ChatwootService {
       conversationId: conversation,
       data: {
         content: i18next.t('cw.message.notsent', {
-          error: error?.length > 0 ? `_${error}_` : '',
+          error: error ? `_${error.toString()}_` : '',
         }),
         message_type: 'outgoing',
         private: true,
@@ -1392,7 +1409,7 @@ export class ChatwootService {
               );
             } catch (error) {
               if (!messageSent && body.conversation?.id) {
-                this.onSendMessageError(instance, body.conversation?.id, error.toString());
+                this.onSendMessageError(instance, body.conversation?.id, error);
               }
               throw error;
             }
@@ -1596,7 +1613,16 @@ export class ChatwootService {
       thumbnailUrl: string;
       sourceUrl: string;
     }
-    const adsMessage: AdsMessage | undefined = msg.extendedTextMessage?.contextInfo?.externalAdReply;
+
+    const adsMessage: AdsMessage | undefined = {
+      title: msg.extendedTextMessage?.contextInfo?.externalAdReply?.title || msg.contextInfo?.externalAdReply?.title,
+      body: msg.extendedTextMessage?.contextInfo?.externalAdReply?.body || msg.contextInfo?.externalAdReply?.body,
+      thumbnailUrl:
+        msg.extendedTextMessage?.contextInfo?.externalAdReply?.thumbnailUrl ||
+        msg.contextInfo?.externalAdReply?.thumbnailUrl,
+      sourceUrl:
+        msg.extendedTextMessage?.contextInfo?.externalAdReply?.sourceUrl || msg.contextInfo?.externalAdReply?.sourceUrl,
+    };
 
     return adsMessage;
   }
@@ -1852,27 +1878,6 @@ export class ChatwootService {
         }
       }
 
-      if (event === 'contact.is_not_in_wpp') {
-        const getConversation = await this.createConversation(instance, body);
-
-        if (!getConversation) {
-          this.logger.warn('conversation not found');
-          return;
-        }
-
-        client.messages.create({
-          accountId: this.provider.accountId,
-          conversationId: getConversation,
-          data: {
-            content: `🚨 ${i18next.t('numbernotinwhatsapp')}`,
-            message_type: 'outgoing',
-            private: true,
-          },
-        });
-
-        return;
-      }
-
       if (event === 'messages.upsert' || event === 'send.message') {
         if (body.key.remoteJid === 'status@broadcast') {
           return;
@@ -1915,7 +1920,7 @@ export class ChatwootService {
 
         const isMedia = this.isMediaMessage(body.message);
 
-        const adsMessage = this.getAdsMessage(body.message);
+        const adsMessage = this.getAdsMessage(body);
 
         const reactionMessage = this.getReactionMessage(body.message);
 
@@ -2063,11 +2068,13 @@ export class ChatwootService {
           fileStream.push(null);
 
           const truncStr = (str: string, len: number) => {
+            if (!str) return '';
+
             return str.length > len ? str.substring(0, len) + '...' : str;
           };
 
           const title = truncStr(adsMessage.title, 40);
-          const description = truncStr(adsMessage.body, 75);
+          const description = truncStr(adsMessage?.body, 75);
 
           const send = await this.sendData(
             getConversation,

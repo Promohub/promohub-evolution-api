@@ -5,7 +5,7 @@ import { TypebotService } from '@api/integrations/chatbot/typebot/services/typeb
 import { PrismaRepository } from '@api/repository/repository.service';
 import { WAMonitoringService } from '@api/services/monitor.service';
 import { Events } from '@api/types/wa.types';
-import { Auth, configService, HttpServer, Typebot } from '@config/env.config';
+import { configService, Typebot } from '@config/env.config';
 import { Logger } from '@config/logger.config';
 import { BadRequestException } from '@exceptions';
 import { Typebot as TypebotModel } from '@prisma/client';
@@ -609,13 +609,7 @@ export class TypebotController extends ChatbotController implements ChatbotContr
       }
     }
 
-    const prefilledVariables = {
-      remoteJid: remoteJid,
-      instanceName: instance.instanceName,
-      serverUrl: configService.get<HttpServer>('SERVER').URL,
-      apiKey: configService.get<Auth>('AUTHENTICATION').API_KEY.KEY,
-      ownerJid: instanceData.number,
-    };
+    const prefilledVariables: any = {};
 
     if (variables?.length) {
       variables.forEach((variable: { name: string | number; value: string }) => {
@@ -674,53 +668,8 @@ export class TypebotController extends ChatbotController implements ChatbotContr
         stopBotFromMe,
         keepOpen,
         'init',
+        prefilledVariables,
       );
-
-      // const response = await this.typebotService.createNewSession(instanceData, {
-      //   enabled: true,
-      //   url: url,
-      //   typebot: typebot,
-      //   remoteJid: remoteJid,
-      //   expire: expire,
-      //   keywordFinish: keywordFinish,
-      //   delayMessage: delayMessage,
-      //   unknownMessage: unknownMessage,
-      //   listeningFromMe: listeningFromMe,
-      //   stopBotFromMe: stopBotFromMe,
-      //   keepOpen: keepOpen,
-      //   prefilledVariables: prefilledVariables,
-      //   typebotId: findBot.id,
-      // });
-
-      // if (response.session) {
-      //   await this.typebotService.sendWAMessage(
-      //     instanceData,
-      //     response.session,
-      //     {
-      //       expire: expire,
-      //       keywordFinish: keywordFinish,
-      //       delayMessage: delayMessage,
-      //       unknownMessage: unknownMessage,
-      //       listeningFromMe: listeningFromMe,
-      //       stopBotFromMe: stopBotFromMe,
-      //       keepOpen: keepOpen,
-      //     },
-      //     remoteJid,
-      //     response.messages,
-      //     response.input,
-      //     response.clientSideActions,
-      //   );
-
-      //   this.waMonitor.waInstances[instance.instanceName].sendDataWebhook(Events.TYPEBOT_START, {
-      //     remoteJid: remoteJid,
-      //     url: url,
-      //     typebot: typebot,
-      //     prefilledVariables: prefilledVariables,
-      //     sessionId: `${response.sessionId}`,
-      //   });
-      // } else {
-      //   throw new Error('Session ID not found in response');
-      // }
     } else {
       const id = Math.floor(Math.random() * 10000000000).toString();
 

@@ -54,15 +54,15 @@ const quotedOptionsSchema: JSONSchema7 = {
   },
 };
 
-export const forwardMessageSchema: JSONSchema7 = {
+export const offerCallSchema: JSONSchema7 = {
   $id: v4(),
   type: 'object',
   properties: {
     number: { ...numberDefinition },
-    messageJid: { type: 'string' },
-    linkPreview: { type: 'boolean' },
+    isVideo: { type: 'boolean', enum: [true, false] },
+    callDuration: { type: 'integer', minimum: 1, maximum: 15 },
   },
-  required: ['number', 'messageJid'],
+  required: ['number', 'callDuration'],
 };
 
 export const textMessageSchema: JSONSchema7 = {
@@ -414,4 +414,15 @@ export const buttonMessageSchema: JSONSchema7 = {
     },
   },
   required: ['number', 'title', 'buttons'],
+};
+
+export const forwardMessageSchema: JSONSchema7 = {
+  $id: v4(),
+  type: 'object',
+  properties: {
+    number: { ...numberDefinition },
+    messageJid: { type: 'string' },
+    linkPreview: { type: 'boolean' },
+  },
+  required: ['number', 'messageJid'],
 };

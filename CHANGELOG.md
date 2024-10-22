@@ -1,4 +1,20 @@
-# 2.1.2 (develop)
+# 2.2.0 (develop)
+
+### Features
+
+* Fake Call function
+* Added unreadMessages to chats
+* Pusher event integration
+* Add support for splitMessages and timePerChar in Integrations
+
+### Fixed
+
+* Fixed prefilledVariables in startTypebot
+* Fix duplicate file upload
+* Mark as read from me and groups
+* fetch chats query
+
+# 2.1.2 (2024-10-06 10:09)
 
 ### Features
 
