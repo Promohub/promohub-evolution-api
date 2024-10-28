@@ -33,6 +33,7 @@ import { HandleLabelDto, LabelDto } from '@api/dto/label.dto';
 import {
   Button,
   ContactMessage,
+  ForwardTextDto,
   MediaMessage,
   Options,
   SendAudioDto,
@@ -141,6 +142,8 @@ import { PassThrough } from 'stream';
 import { v4 } from 'uuid';
 
 const groupMetadataCache = new CacheService(new CacheEngine(configService, 'groups').getEngine());
+
+const messageMetadataCache = new CacheService(new CacheEngine(configService, 'messages').getEngine());
 
 export class BaileysStartupService extends ChannelStartupService {
   constructor(
@@ -1073,6 +1076,8 @@ export class BaileysStartupService extends ChannelStartupService {
           }
 
           const messageRaw = this.prepareMessage(received);
+        
+          await this.updateMessageMetadataCache(received.key.id, received);
 
           const isMedia =
             received?.message?.imageMessage ||
@@ -1833,6 +1838,18 @@ export class BaileysStartupService extends ChannelStartupService {
       }
     }
 
+    if (message.forward) {
+      return await this.client.sendMessage(
+        sender,
+        {
+          forward: message.forward,
+          mentions: [],
+          linkPreview: linkPreview,
+        },
+        option as unknown as MiscMessageGenerationOptions,
+      );
+    }
+
     if (message['conversation']) {
       return await this.client.sendMessage(
         sender,
@@ -1931,6 +1948,144 @@ export class BaileysStartupService extends ChannelStartupService {
       message as unknown as AnyMessageContent,
       option as unknown as MiscMessageGenerationOptions,
     );
+  }
+
+  private async sendForwardedMessage(
+    number: string,
+    messageJid: string,
+    options?: { linkPreview: boolean },
+    isIntegration = false,
+  ) {
+    const isWA = (await this.whatsappNumber({ numbers: [number] }))?.shift();
+    if (!isWA.exists && !isJidGroup(isWA.jid) && !isWA.jid.includes('@broadcast')) {
+      if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
+        const body = {
+          key: { remoteJid: isWA.jid },
+        };
+        this.chatwootService.eventWhatsapp(
+          'contact.is_not_in_wpp',
+          { instanceName: this.instance.name, instanceId: this.instance.id },
+          body,
+        );
+      }
+      throw new BadRequestException(isWA);
+    }
+    const sender = isWA.jid;
+    this.logger.verbose(`Sending message to ${sender}`);
+    try {
+      let msg: proto.IWebMessageInfo;
+      const cacheConf = this.configService.get<CacheConf>('CACHE');
+      if ((cacheConf?.REDIS?.ENABLED && cacheConf?.REDIS?.URI !== '') || cacheConf?.LOCAL?.ENABLED) {
+        if (await messageMetadataCache?.has(messageJid)) {
+          console.log(`Cache request for message: ${messageJid}`);
+          const meta = await messageMetadataCache.get(messageJid);
+          msg = meta.data;
+        }
+      }
+      //const msg = (await this.getMessage({ id: messageJid }, true)) as proto.IWebMessageInfo;
+      if (!msg) {
+        this.logger.error('Message not found');
+        throw new BadRequestException('Message not found');
+      }
+      let quoted: WAMessage;
+      const message = {
+        forward: {
+          // key: { remoteJid: this.instance.wuid, fromMe: true } as proto.MessageKey,
+          key: msg.key,
+          message: msg.message,
+        },
+      };
+      const messageSent: WAMessage = await this.sendMessage(sender, message, [], false, quoted);
+      const contentMsg = messageSent.message[getContentType(messageSent.message)] as any;
+      if (Long.isLong(messageSent?.messageTimestamp)) {
+        messageSent.messageTimestamp = messageSent.messageTimestamp?.toNumber();
+      }
+      const messageRaw: any = {
+        key: messageSent.key,
+        pushName: messageSent.pushName,
+        message: { ...messageSent.message },
+        contextInfo: contentMsg?.contextInfo,
+        messageType: getContentType(messageSent.message),
+        messageTimestamp: messageSent.messageTimestamp as number,
+        instanceId: this.instanceId,
+        source: getDevice(messageSent.key.id),
+      };
+      // if (messageRaw.message.extendedTextMessage) {
+      //   messageRaw.message.conversation = messageRaw.message.extendedTextMessage.text;
+      //   delete messageRaw.message.extendedTextMessage;
+      // }
+      this.logger.log(messageRaw);
+      this.sendDataWebhook(Events.SEND_MESSAGE, messageRaw);
+      if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled && !isIntegration) {
+        this.chatwootService.eventWhatsapp(
+          Events.SEND_MESSAGE,
+          { instanceName: this.instance.name, instanceId: this.instanceId },
+          messageRaw,
+        );
+      }
+      if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled && isIntegration)
+        await chatbotController.emit({
+          instance: { instanceName: this.instance.name, instanceId: this.instanceId },
+          remoteJid: messageRaw.key.remoteJid,
+          msg: messageRaw,
+          pushName: messageRaw.pushName,
+          isIntegration,
+        });
+      if (this.configService.get<Database>('DATABASE').SAVE_DATA.NEW_MESSAGE) {
+        const msg = await this.prismaRepository.message.create({
+          data: messageRaw,
+        });
+        const isMedia =
+          messageRaw?.message?.imageMessage ||
+          messageRaw?.message?.videoMessage ||
+          messageRaw?.message?.stickerMessage ||
+          messageRaw?.message?.documentMessage ||
+          messageRaw?.message?.documentWithCaptionMessage ||
+          messageRaw?.message?.audioMessage;
+        if (isMedia) {
+          if (this.configService.get<S3>('S3').ENABLE) {
+            try {
+              const message: any = messageRaw;
+              const media = await this.getBase64FromMediaMessage(
+                {
+                  message,
+                },
+                true,
+              );
+              const { buffer, mediaType, fileName, size } = media;
+              const mimetype = mime.getType(fileName).toString();
+              const fullName = join(`${this.instance.id}`, messageRaw.key.remoteJid, mediaType, fileName);
+              await s3Service.uploadFile(fullName, buffer, size.fileLength?.low, {
+                'Content-Type': mimetype,
+              });
+              await this.prismaRepository.media.create({
+                data: {
+                  messageId: msg.id,
+                  instanceId: this.instanceId,
+                  type: mediaType,
+                  fileName: fullName,
+                  mimetype,
+                },
+              });
+              const mediaUrl = await s3Service.getObjectUrl(fullName);
+              messageRaw.message.mediaUrl = mediaUrl;
+              await this.prismaRepository.message.update({
+                where: { id: msg.id },
+                data: messageRaw,
+              });
+            } catch (error) {
+              this.logger.error('line 1181');
+              this.logger.error(['Error on upload file to minio', error?.message, error?.stack]);
+            }
+          }
+        }
+      }
+      return messageSent;
+    } catch (error) {
+      this.logger.error('line 2081');
+      this.logger.error(error);
+      throw new BadRequestException(error.toString());
+    }
   }
 
   private async sendMessageWithTyping<T = proto.IMessage>(
@@ -2174,6 +2329,23 @@ export class BaileysStartupService extends ChannelStartupService {
       throw new BadRequestException(error.toString());
     }
   }
+
+
+    // Forward Message Controller
+  public async forwardMessage(data: ForwardTextDto, isIntegration = false) {
+      const messageJid = data.messageJid;
+      if (!messageJid || messageJid.trim().length === 0) {
+        throw new BadRequestException('messageJid is required');
+      }
+      return await this.sendForwardedMessage(
+        data.number,
+        messageJid,
+        {
+          linkPreview: data?.linkPreview,
+        },
+        isIntegration,
+      );
+    }
 
   // Instance Controller
   public async sendPresence(data: SendPresenceDto) {
@@ -3615,6 +3787,27 @@ export class BaileysStartupService extends ChannelStartupService {
       }
 
       return meta;
+    } catch (error) {
+      this.logger.error(error);
+      return null;
+    }
+  }
+
+  private async updateMessageMetadataCache(messageJid: string, rawMessage: any) {
+    try {
+      const cacheConf = this.configService.get<CacheConf>('CACHE');
+      if ((cacheConf?.REDIS?.ENABLED && cacheConf?.REDIS?.URI !== '') || cacheConf?.LOCAL?.ENABLED) {
+        this.logger.verbose(`Updating cache for message: ${messageJid}`);
+        await messageMetadataCache.set(
+          messageJid,
+          {
+            timestamp: Date.now(),
+            data: rawMessage,
+          },
+          86400,
+        );
+      }
+      return rawMessage;
     } catch (error) {
       this.logger.error(error);
       return null;

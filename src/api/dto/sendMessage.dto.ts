@@ -156,3 +156,9 @@ export class SendReactionDto {
   key: proto.IMessageKey;
   reaction: string;
 }
+
+export class ForwardTextDto {
+  messageJid: string;
+  linkPreview?: boolean;
+  number: string;
+}

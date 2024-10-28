@@ -1,5 +1,6 @@
 import { RouterBroker } from '@api/abstract/abstract.router';
 import {
+  ForwardTextDto,
   SendAudioDto,
   SendButtonsDto,
   SendContactDto,
@@ -18,6 +19,7 @@ import {
   audioMessageSchema,
   buttonsMessageSchema,
   contactMessageSchema,
+  forwardMessageSchema,
   listMessageSchema,
   locationMessageSchema,
   mediaMessageSchema,
@@ -57,6 +59,15 @@ export class MessageRouter extends RouterBroker {
           execute: (instance, data) => sendMessageController.sendText(instance, data),
         });
 
+        return res.status(HttpStatus.CREATED).json(response);
+      })
+      .post(this.routerPath('forwardMessage'), ...guards, async (req, res) => {
+        const response = await this.dataValidate<ForwardTextDto>({
+          request: req,
+          schema: forwardMessageSchema,
+          ClassRef: ForwardTextDto,
+          execute: (instance, data) => sendMessageController.forward(instance, data),
+        });
         return res.status(HttpStatus.CREATED).json(response);
       })
       .post(this.routerPath('sendMedia'), ...guards, upload.single('file'), async (req, res) => {

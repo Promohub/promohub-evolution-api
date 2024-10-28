@@ -1,5 +1,6 @@
 import { InstanceDto } from '@api/dto/instance.dto';
 import {
+  ForwardTextDto,
   SendAudioDto,
   SendButtonsDto,
   SendContactDto,
@@ -28,6 +29,10 @@ export class SendMessageController {
     return await this.waMonitor.waInstances[instanceName].textMessage(data);
   }
 
+  public async forward({ instanceName }: InstanceDto, data: ForwardTextDto) {
+    return await this.waMonitor.waInstances[instanceName].forwardMessage(data);
+  }
+  
   public async sendMedia({ instanceName }: InstanceDto, data: SendMediaDto, file?: any) {
     if (isBase64(data?.media) && !data?.fileName && data?.mediatype === 'document') {
       throw new BadRequestException('For base64 the file name must be informed.');

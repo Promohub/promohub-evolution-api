@@ -17,13 +17,16 @@ COPY ./src ./src
 COPY ./public ./public
 COPY ./prisma ./prisma
 COPY ./manager ./manager
-COPY ./.env.example ./.env
+# COPY ./.env.example ./.env
+COPY ./.env.prd ./.env
 COPY ./runWithProvider.js ./
 COPY ./tsup.config.ts ./
 
 COPY ./Docker ./Docker
 
 RUN chmod +x ./Docker/scripts/* && dos2unix ./Docker/scripts/*
+
+ENV DATABASE_PROVIDER=postgresql
 
 RUN ./Docker/scripts/generate_database.sh
 
