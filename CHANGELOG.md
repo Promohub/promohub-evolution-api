@@ -9,6 +9,7 @@
 * Pusher event integration
 * Add support for splitMessages and timePerChar in Integrations
 * Audio Converter via API
+* Send PTV messages with Baileys
 
 ### Fixed
 
@@ -20,6 +21,8 @@
 * Add indexes to improve performance in Evolution
 * Add logical or permanent message deletion based on env config
 * Add support for fetching multiple instances by key
+* Update instance.controller.ts to filter by instanceName
+* Receive template button reply message
 
 # 2.1.2 (2024-10-06 10:09)
 
