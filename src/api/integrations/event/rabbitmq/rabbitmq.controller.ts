@@ -131,7 +131,7 @@ export class RabbitmqController extends EventController implements EventControll
                 ...message,
               };
 
-              this.logger.log(logData);
+              // this.logger.log(logData);
             }
 
             break;
@@ -174,7 +174,7 @@ export class RabbitmqController extends EventController implements EventControll
               ...message,
             };
 
-            this.logger.log(logData);
+            // this.logger.log(logData);
           }
 
           break;

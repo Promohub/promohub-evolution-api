@@ -106,7 +106,7 @@ export class WebhookController extends EventController implements EventControlle
             ...webhookData,
           };
 
-          this.logger.log(logData);
+          // this.logger.log(logData);
         }
 
         try {
@@ -150,7 +150,7 @@ export class WebhookController extends EventController implements EventControlle
             ...webhookData,
           };
 
-          this.logger.log(logData);
+          // this.logger.log({ logData: logData });
         }
 
         try {

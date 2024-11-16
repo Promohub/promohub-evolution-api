@@ -4,7 +4,7 @@ import fs from 'fs';
 import { configService, Log } from './env.config';
 const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 
-const formatDateLog = (timestamp: number) =>
+export const formatDateLog = (timestamp: number) =>
   dayjs(timestamp)
     .toDate()
     .toString()

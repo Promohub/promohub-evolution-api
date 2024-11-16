@@ -107,7 +107,7 @@ export class SqsController extends EventController implements EventControllerInt
                   ...message,
                 };
 
-                this.logger.log(logData);
+                // this.logger.log(logData);
               }
             }
           });

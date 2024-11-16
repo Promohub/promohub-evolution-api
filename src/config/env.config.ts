@@ -18,7 +18,7 @@ export type Cors = {
   CREDENTIALS: boolean;
 };
 
-export type LogBaileys = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+export type LogBaileys = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace' | 'silent';
 
 export type LogLevel = 'ERROR' | 'WARN' | 'DEBUG' | 'INFO' | 'LOG' | 'VERBOSE' | 'DARK' | 'WEBHOOKS' | 'WEBSOCKET';
 
@@ -541,7 +541,7 @@ export class ConfigService {
         },
         LOCAL: {
           ENABLED: process.env?.CACHE_LOCAL_ENABLED === 'true',
-          TTL: Number.parseInt(process.env?.CACHE_REDIS_TTL) || 86400,
+          TTL: Number.parseInt(process.env?.CACHE_REDIS_TTL) || 86400 * 2,
         },
       },
       S3: {

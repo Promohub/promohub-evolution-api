@@ -472,7 +472,7 @@ export class BusinessStartupService extends ChannelStartupService {
           }
         }
 
-        this.logger.log(messageRaw);
+        // this.logger.log(messageRaw);
 
         this.sendDataWebhook(Events.MESSAGES_UPSERT, messageRaw);
 
@@ -905,7 +905,7 @@ export class BusinessStartupService extends ChannelStartupService {
         source: 'unknown',
       };
 
-      this.logger.log(messageRaw);
+      // this.logger.log(messageRaw);
 
       this.sendDataWebhook(Events.SEND_MESSAGE, messageRaw);
 
