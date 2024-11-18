@@ -1921,7 +1921,7 @@ export class BaileysStartupService extends ChannelStartupService {
         messageId,
         quoted,
       });
-      const id = await this.client.relayMessage(sender, message, { messageId });
+      const id = messageId; // await this.client.relayMessage(sender, message, { messageId });
       m.key = {
         id: id,
         remoteJid: sender,
