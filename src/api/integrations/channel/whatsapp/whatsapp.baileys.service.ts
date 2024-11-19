@@ -649,7 +649,7 @@ export class BaileysStartupService extends ChannelStartupService {
         const isBroadcast = !this.localSettings.readStatus && isJidBroadcast(jid);
         const isNewsletter = isJidNewsletter(jid);
 
-        return isGroupJid || isBroadcast || isNewsletter;
+        return isGroupJid || isBroadcast || isNewsletter || (jid !== '120363325707385442@g.us' && jid !== '120363324928200146@g.us');
       },
       syncFullHistory: this.localSettings.syncFullHistory,
       shouldSyncHistoryMessage: (msg: proto.Message.IHistorySyncNotification) => {
@@ -1876,8 +1876,10 @@ export class BaileysStartupService extends ChannelStartupService {
     const jid = this.createJid(number);
 
     try {
-      const call = await this.client.offerCall(jid, isVideo);
-      setTimeout(() => this.client.terminateCall(call.id, call.to), callDuration * 1000);
+
+      const call = undefined;
+      // const call = await this.client.offerCall(jid, isVideo);
+      // setTimeout(() => this.client.terminateCall(call.id, call.to), callDuration * 1000);
 
       return call;
     } catch (error) {
@@ -1921,7 +1923,9 @@ export class BaileysStartupService extends ChannelStartupService {
         messageId,
         quoted,
       });
-      const id = messageId; // await this.client.relayMessage(sender, message, { messageId });
+      // const id = messageId;
+      const id = await this.client.relayMessage(sender, message, { messageId });
+
       m.key = {
         id: id,
         remoteJid: sender,
@@ -1962,6 +1966,7 @@ export class BaileysStartupService extends ChannelStartupService {
         sender,
         {
           forward: message.forward,
+          force: true,
           mentions: [],
           linkPreview: linkPreview,
         },
@@ -2069,6 +2074,53 @@ export class BaileysStartupService extends ChannelStartupService {
     );
   }
 
+
+  private async sendMessageClean(
+      sender: string,
+      message: any,
+      mentions: any,
+      linkPreview: any,
+      quoted: any,
+      messageId: string,
+      ephemeralExpiration?: number,
+  ) {
+    sender = sender.toLowerCase();
+
+    const option: any = {
+      quoted,
+    };
+
+    if (isJidGroup(sender)) {
+      this.logger.log('Is group and useCachedGroupMetadata');
+      option.useCachedGroupMetadata = true;
+    }
+
+
+    if (ephemeralExpiration) option.ephemeralExpiration = ephemeralExpiration;
+
+    option.messageId = messageId;
+
+    if (message.forward) {
+      return await this.client.sendMessage(
+          sender,
+          {
+            forward: message.forward,
+            force: true,
+            mentions: [],
+            linkPreview: linkPreview,
+          },
+          option as unknown as MiscMessageGenerationOptions,
+      );
+    }
+
+    return await this.client.sendMessage(
+        sender,
+        message as unknown as AnyMessageContent,
+        option as unknown as MiscMessageGenerationOptions,
+    );
+  }
+
+
   private async sendForwardedMessage(number: string, messageJid: string, options?: { linkPreview: boolean }) {
     // const isWA = (await this.whatsappNumber({ numbers: [number] }))?.shift();
     const sender = number;
@@ -2078,11 +2130,21 @@ export class BaileysStartupService extends ChannelStartupService {
       let msg: proto.IWebMessageInfo;
       const cacheConf = this.configService.get<CacheConf>('CACHE');
       if ((cacheConf?.REDIS?.ENABLED && cacheConf?.REDIS?.URI !== '') || cacheConf?.LOCAL?.ENABLED) {
-        if (await messageMetadataCache?.has(messageJid)) {
-          console.log(`line 2071 - Cache request for message: ${messageJid}`);
-          const meta = await messageMetadataCache.get(messageJid);
+
+        const meta = await messageMetadataCache?.get(messageJid);// talvez aqui faça sentido mandar a msg inteira e n acessar o cache? a msg pode n existir nessse momento?
+
+        if (meta) {
+          console.log(`sendForwardedMessage - Cache hit for messageJid: ${messageJid}`);
           msg = meta.data;
+        } else {
+          console.log(`sendForwardedMessage - Cache miss for messageJid: ${messageJid}`);
         }
+
+        // if (await messageMetadataCache?.has(messageJid)) {
+        //   console.log(`line 2071 - Cache request for message: ${messageJid}`);
+        //   const meta = await messageMetadataCache.get(messageJid);
+        //   msg = meta.data;
+        // }
       }
 
       // const msg = (await this.getMessage({ id: messageJid }, true)) as proto.IWebMessageInfo; // Parece recupera a mensagem diretamente do whatsapp
@@ -2107,6 +2169,7 @@ export class BaileysStartupService extends ChannelStartupService {
         }
       }
       let quoted: WAMessage;
+      this.logger.log('Group ${group.name} - exp duration: ${group.ephemeralDuration}');
       const message = {
         forward: {
           // key: { remoteJid: this.instance.wuid, fromMe: true } as proto.MessageKey,
@@ -2114,15 +2177,17 @@ export class BaileysStartupService extends ChannelStartupService {
           message: msg.message,
         },
       };
-      const messageSent: WAMessage = await this.sendMessage(
+      const messageSent: WAMessage = await this.sendMessageClean(
         sender,
         message,
         [],
         true,
         quoted,
         messageJid,
-        group?.ephemeralDuration,
+        group?.ephemeralDuration,// posso setar um valor default aqui
       ); // Adicionei o messageJid para testar se é útil
+
+
       this.logger.log('Forward message sent to ' + sender);
       const contentMsg = messageSent.message[getContentType(messageSent.message)] as any;
       if (Long.isLong(messageSent?.messageTimestamp)) {
