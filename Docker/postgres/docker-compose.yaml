@@ -11,7 +11,7 @@ services:
     ports:
       - 5432:5432
     environment:
-      - POSTGRES_PASSWORD=PASSWORD
+      - POSTGRES_PASSWORD=root
     volumes:
       - postgres_data:/var/lib/postgresql/data
     expose:
@@ -23,7 +23,7 @@ services:
       - evolution-net
     environment:
       - PGADMIN_DEFAULT_EMAIL=EMAIL
-      - PGADMIN_DEFAULT_PASSWORD=PASSWORD  
+      - PGADMIN_DEFAULT_PASSWORD=root
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     ports:

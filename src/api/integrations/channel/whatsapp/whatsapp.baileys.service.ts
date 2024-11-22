@@ -371,12 +371,12 @@ export class BaileysStartupService extends ChannelStartupService {
         }
       });
 
-      qrcodeTerminal.generate(qr, { small: true }, (qrcode) =>
-        this.logger.log(
-          `\n{ instance: ${this.instance.name} pairingCode: ${this.instance.qrcode.pairingCode}, qrcodeCount: ${this.instance.qrcode.count} }\n` +
-            qrcode,
-        ),
-      );
+      // qrcodeTerminal.generate(qr, { small: true }, (qrcode) =>
+      //   this.logger.log(
+      //     `\n{ instance: ${this.instance.name} pairingCode: ${this.instance.qrcode.pairingCode}, qrcodeCount: ${this.instance.qrcode.count} }\n` +
+      //       qrcode,
+      //   ),
+      // );
 
       await this.prismaRepository.instance.update({
         where: { id: this.instanceId },
@@ -620,16 +620,11 @@ export class BaileysStartupService extends ChannelStartupService {
     const socketConfig: UserFacingSocketConfig = {
       ...options,
       version,
-      logger: P({ level: this.logBaileys, enabled: false }),
+      logger: P({ level: this.logBaileys }),
       printQRInTerminal: false,
       auth: {
         creds: this.instance.authState.state.creds,
-        keys: makeCacheableSignalKeyStore(
-          this.instance.authState.state.keys,
-          P({
-            level: 'error',
-          }) as any,
-        ),
+        keys: makeCacheableSignalKeyStore(this.instance.authState.state.keys, P({ level: 'error' }) as any),
       },
       msgRetryCounterCache: this.msgRetryCounterCache,
       generateHighQualityLinkPreview: true,
@@ -637,19 +632,22 @@ export class BaileysStartupService extends ChannelStartupService {
       ...browserOptions,
       markOnlineOnConnect: this.localSettings.alwaysOnline,
       retryRequestDelayMs: 500,
-      maxMsgRetryCount: 5,
+      maxMsgRetryCount: 4,
       fireInitQueries: true,
       connectTimeoutMs: 30_000,
       keepAliveIntervalMs: 30_000,
       qrTimeout: 45_000,
-      defaultQueryTimeoutMs: undefined,
       emitOwnEvents: false,
       shouldIgnoreJid: (jid) => {
-        const isGroupJid = this.localSettings.groupsIgnore && isJidGroup(jid);
+        const isGroupJid = isJidGroup(jid) && (jid !== '120363325707385442@g.us' && jid !== '120363324928200146@g.us');
+        // const isPrivateAllowed = jid === '554498909697@s.whatsapp.net';
+        // const isGroupJid = this.localSettings.groupsIgnore && isJidGroup(jid);
         const isBroadcast = !this.localSettings.readStatus && isJidBroadcast(jid);
         const isNewsletter = isJidNewsletter(jid);
 
-        return isGroupJid || isBroadcast || isNewsletter || (jid !== '120363325707385442@g.us' && jid !== '120363324928200146@g.us');
+        return isGroupJid || isBroadcast || isNewsletter;
+        // return (isGroupJid || isPrivateAllowed) || isBroadcast || isNewsletter;
+        // return isGroupJid || isBroadcast || isNewsletter;
       },
       syncFullHistory: this.localSettings.syncFullHistory,
       shouldSyncHistoryMessage: (msg: proto.Message.IHistorySyncNotification) => {
@@ -657,7 +655,7 @@ export class BaileysStartupService extends ChannelStartupService {
       },
       cachedGroupMetadata: this.getGroupMetadataCache,
       userDevicesCache: this.userDevicesCache,
-      transactionOpts: { maxCommitRetries: 20, delayBetweenTriesMs: 4000 },
+      transactionOpts: { maxCommitRetries: 20, delayBetweenTriesMs: 3000 },
       patchMessageBeforeSending(message) {
         if (
           message.deviceSentMessage?.message?.listMessage?.listType === proto.Message.ListMessage.ListType.PRODUCT_LIST
@@ -740,172 +738,172 @@ export class BaileysStartupService extends ChannelStartupService {
       }
     },
 
-    // 'chats.update': async (
-    //     chats: Partial<
-    //         proto.IConversation & {
-    //         lastMessageRecvTimestamp?: number;
-    //     } & {
-    //         conditional: (bufferedData: BufferedEventData) => boolean;
-    //     }
-    //     >[],
-    // ) => {
-    //     const chatsRaw = chats.map((chat) => {
-    //         return {remoteJid: chat.id, instanceId: this.instanceId};
-    //     });
-    //
-    //     this.sendDataWebhook(Events.CHATS_UPDATE, chatsRaw);
-    //
-    //     for (const chat of chats) {
-    //         await this.prismaRepository.chat.updateMany({
-    //             where: {
-    //                 instanceId: this.instanceId,
-    //                 remoteJid: chat.id,
-    //                 name: chat.name,
-    //             },
-    //             data: {remoteJid: chat.id},
-    //         });
-    //     }
-    // },
+    'chats.update': async (
+      chats: Partial<
+        proto.IConversation & {
+          lastMessageRecvTimestamp?: number;
+        } & {
+          conditional: (bufferedData: BufferedEventData) => boolean;
+        }
+      >[],
+    ) => {
+      const chatsRaw = chats.map((chat) => {
+        return { remoteJid: chat.id, instanceId: this.instanceId };
+      });
 
-    // 'chats.delete': async (chats: string[]) => {
-    //     chats.forEach(
-    //         async (chat) =>
-    //             await this.prismaRepository.chat.deleteMany({
-    //                 where: {instanceId: this.instanceId, remoteJid: chat},
-    //             }),
-    //     );
-    //
-    //     this.sendDataWebhook(Events.CHATS_DELETE, [...chats]);
-    // },
+      this.sendDataWebhook(Events.CHATS_UPDATE, chatsRaw);
+
+      for (const chat of chats) {
+        await this.prismaRepository.chat.updateMany({
+          where: {
+            instanceId: this.instanceId,
+            remoteJid: chat.id,
+            name: chat.name,
+          },
+          data: { remoteJid: chat.id },
+        });
+      }
+    },
+
+    'chats.delete': async (chats: string[]) => {
+      chats.forEach(
+        async (chat) =>
+          await this.prismaRepository.chat.deleteMany({
+            where: { instanceId: this.instanceId, remoteJid: chat },
+          }),
+      );
+
+      this.sendDataWebhook(Events.CHATS_DELETE, [...chats]);
+    },
   };
 
-  // private readonly contactHandle = {
-  //     'contacts.upsert': async (contacts: Contact[]) => {
-  //         try {
-  //             const contactsRaw: any = contacts.map((contact) => ({
-  //                 remoteJid: contact.id,
-  //                 pushName: contact?.name || contact?.verifiedName || contact.id.split('@')[0],
-  //                 profilePicUrl: null,
-  //                 instanceId: this.instanceId,
-  //             }));
-  //
-  //             if (contactsRaw.length > 0) {
-  //                 this.sendDataWebhook(Events.CONTACTS_UPSERT, contactsRaw);
-  //
-  //                 if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS)
-  //                     await this.prismaRepository.contact.createMany({
-  //                         data: contactsRaw,
-  //                         skipDuplicates: true,
-  //                     });
-  //
-  //                 const usersContacts = contactsRaw.filter((c) => c.remoteJid.includes('@s.whatsapp'));
-  //                 if (usersContacts) {
-  //                     await saveOnWhatsappCache(usersContacts.map((c) => ({remoteJid: c.remoteJid})));
-  //                 }
-  //             }
-  //
-  //             if (
-  //                 this.configService.get<Chatwoot>('CHATWOOT').ENABLED &&
-  //                 this.localChatwoot?.enabled &&
-  //                 this.localChatwoot.importContacts &&
-  //                 contactsRaw.length
-  //             ) {
-  //                 this.chatwootService.addHistoryContacts(
-  //                     {instanceName: this.instance.name, instanceId: this.instance.id},
-  //                     contactsRaw,
-  //                 );
-  //                 chatwootImport.importHistoryContacts(
-  //                     {instanceName: this.instance.name, instanceId: this.instance.id},
-  //                     this.localChatwoot,
-  //                 );
-  //             }
-  //
-  //             const updatedContacts = await Promise.all(
-  //                 contacts.map(async (contact) => ({
-  //                     remoteJid: contact.id,
-  //                     pushName: contact?.name || contact?.verifiedName || contact.id.split('@')[0],
-  //                     profilePicUrl: (await this.profilePicture(contact.id)).profilePictureUrl,
-  //                     instanceId: this.instanceId,
-  //                 })),
-  //             );
-  //
-  //             if (updatedContacts.length > 0) {
-  //                 const usersContacts = updatedContacts.filter((c) => c.remoteJid.includes('@s.whatsapp'));
-  //                 if (usersContacts) {
-  //                     await saveOnWhatsappCache(usersContacts.map((c) => ({remoteJid: c.remoteJid})));
-  //                 }
-  //
-  //                 this.sendDataWebhook(Events.CONTACTS_UPDATE, updatedContacts);
-  //                 await Promise.all(
-  //                     updatedContacts.map(async (contact) => {
-  //                         const update = this.prismaRepository.contact.updateMany({
-  //                             where: {remoteJid: contact.remoteJid, instanceId: this.instanceId},
-  //                             data: {
-  //                                 profilePicUrl: contact.profilePicUrl,
-  //                             },
-  //                         });
-  //
-  //                         if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
-  //                             const instance = {instanceName: this.instance.name, instanceId: this.instance.id};
-  //
-  //                             const findParticipant = await this.chatwootService.findContact(
-  //                                 instance,
-  //                                 contact.remoteJid.split('@')[0],
-  //                             );
-  //
-  //                             if (!findParticipant) {
-  //                                 return;
-  //                             }
-  //
-  //                             this.chatwootService.updateContact(instance, findParticipant.id, {
-  //                                 name: contact.pushName,
-  //                                 avatar_url: contact.profilePicUrl,
-  //                             });
-  //                         }
-  //
-  //                         return update;
-  //                     }),
-  //                 );
-  //             }
-  //         } catch (error) {
-  //             console.error(error);
-  //             this.logger.error(`Error: ${error.message}`);
-  //         }
-  //     },
-  //
-  //     'contacts.update': async (contacts: Partial<Contact>[]) => {
-  //         const contactsRaw: {
-  //             remoteJid: string;
-  //             pushName?: string;
-  //             profilePicUrl?: string;
-  //             instanceId: string;
-  //         }[] = [];
-  //         for await (const contact of contacts) {
-  //             contactsRaw.push({
-  //                 remoteJid: contact.id,
-  //                 pushName: contact?.name ?? contact?.verifiedName,
-  //                 profilePicUrl: (await this.profilePicture(contact.id)).profilePictureUrl,
-  //                 instanceId: this.instanceId,
-  //             });
-  //         }
-  //
-  //         this.sendDataWebhook(Events.CONTACTS_UPDATE, contactsRaw);
-  //
-  //         const updateTransactions = contactsRaw.map((contact) =>
-  //             this.prismaRepository.contact.upsert({
-  //                 where: {remoteJid_instanceId: {remoteJid: contact.remoteJid, instanceId: contact.instanceId}},
-  //                 create: contact,
-  //                 update: contact,
-  //             }),
-  //         );
-  //         await this.prismaRepository.$transaction(updateTransactions);
-  //
-  //         const usersContacts = contactsRaw.filter((c) => c.remoteJid.includes('@s.whatsapp'));
-  //         if (usersContacts) {
-  //             await saveOnWhatsappCache(usersContacts.map((c) => ({remoteJid: c.remoteJid})));
-  //         }
-  //     },
-  // };
+  private readonly contactHandle = {
+    'contacts.upsert': async (contacts: Contact[]) => {
+      try {
+        const contactsRaw: any = contacts.map((contact) => ({
+          remoteJid: contact.id,
+          pushName: contact?.name || contact?.verifiedName || contact.id.split('@')[0],
+          profilePicUrl: null,
+          instanceId: this.instanceId,
+        }));
+
+        if (contactsRaw.length > 0) {
+          this.sendDataWebhook(Events.CONTACTS_UPSERT, contactsRaw);
+
+          if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS)
+            await this.prismaRepository.contact.createMany({
+              data: contactsRaw,
+              skipDuplicates: true,
+            });
+
+          const usersContacts = contactsRaw.filter((c) => c.remoteJid.includes('@s.whatsapp'));
+          if (usersContacts) {
+            await saveOnWhatsappCache(usersContacts.map((c) => ({ remoteJid: c.remoteJid })));
+          }
+        }
+
+        if (
+          this.configService.get<Chatwoot>('CHATWOOT').ENABLED &&
+          this.localChatwoot?.enabled &&
+          this.localChatwoot.importContacts &&
+          contactsRaw.length
+        ) {
+          this.chatwootService.addHistoryContacts(
+            { instanceName: this.instance.name, instanceId: this.instance.id },
+            contactsRaw,
+          );
+          chatwootImport.importHistoryContacts(
+            { instanceName: this.instance.name, instanceId: this.instance.id },
+            this.localChatwoot,
+          );
+        }
+
+        const updatedContacts = await Promise.all(
+          contacts.map(async (contact) => ({
+            remoteJid: contact.id,
+            pushName: contact?.name || contact?.verifiedName || contact.id.split('@')[0],
+            profilePicUrl: (await this.profilePicture(contact.id)).profilePictureUrl,
+            instanceId: this.instanceId,
+          })),
+        );
+
+        if (updatedContacts.length > 0) {
+          const usersContacts = updatedContacts.filter((c) => c.remoteJid.includes('@s.whatsapp'));
+          if (usersContacts) {
+            await saveOnWhatsappCache(usersContacts.map((c) => ({ remoteJid: c.remoteJid })));
+          }
+
+          this.sendDataWebhook(Events.CONTACTS_UPDATE, updatedContacts);
+          await Promise.all(
+            updatedContacts.map(async (contact) => {
+              const update = this.prismaRepository.contact.updateMany({
+                where: { remoteJid: contact.remoteJid, instanceId: this.instanceId },
+                data: {
+                  profilePicUrl: contact.profilePicUrl,
+                },
+              });
+
+              if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
+                const instance = { instanceName: this.instance.name, instanceId: this.instance.id };
+
+                const findParticipant = await this.chatwootService.findContact(
+                  instance,
+                  contact.remoteJid.split('@')[0],
+                );
+
+                if (!findParticipant) {
+                  return;
+                }
+
+                this.chatwootService.updateContact(instance, findParticipant.id, {
+                  name: contact.pushName,
+                  avatar_url: contact.profilePicUrl,
+                });
+              }
+
+              return update;
+            }),
+          );
+        }
+      } catch (error) {
+        console.error(error);
+        this.logger.error(`Error: ${error.message}`);
+      }
+    },
+
+    'contacts.update': async (contacts: Partial<Contact>[]) => {
+      const contactsRaw: {
+        remoteJid: string;
+        pushName?: string;
+        profilePicUrl?: string;
+        instanceId: string;
+      }[] = [];
+      for await (const contact of contacts) {
+        contactsRaw.push({
+          remoteJid: contact.id,
+          pushName: contact?.name ?? contact?.verifiedName,
+          profilePicUrl: (await this.profilePicture(contact.id)).profilePictureUrl,
+          instanceId: this.instanceId,
+        });
+      }
+
+      this.sendDataWebhook(Events.CONTACTS_UPDATE, contactsRaw);
+
+      const updateTransactions = contactsRaw.map((contact) =>
+        this.prismaRepository.contact.upsert({
+          where: { remoteJid_instanceId: { remoteJid: contact.remoteJid, instanceId: contact.instanceId } },
+          create: contact,
+          update: contact,
+        }),
+      );
+      await this.prismaRepository.$transaction(updateTransactions);
+
+      const usersContacts = contactsRaw.filter((c) => c.remoteJid.includes('@s.whatsapp'));
+      if (usersContacts) {
+        await saveOnWhatsappCache(usersContacts.map((c) => ({ remoteJid: c.remoteJid })));
+      }
+    },
+  };
 
   private readonly messageHandle = {
     'messaging-history.set': async ({
@@ -1045,14 +1043,14 @@ export class BaileysStartupService extends ChannelStartupService {
           );
         }
 
-        // await this.contactHandle['contacts.upsert'](
-        //     contacts
-        //         .filter((c) => !!c.notify || !!c.name)
-        //         .map((c) => ({
-        //             id: c.id,
-        //             name: c.name ?? c.notify,
-        //         })),
-        // );
+        await this.contactHandle['contacts.upsert'](
+          contacts
+            .filter((c) => !!c.notify || !!c.name)
+            .map((c) => ({
+              id: c.id,
+              name: c.name ?? c.notify,
+            })),
+        );
 
         contacts = undefined;
         messages = undefined;
@@ -1164,7 +1162,7 @@ export class BaileysStartupService extends ChannelStartupService {
 
           const messageRaw = this.prepareMessage(received);
 
-          await this.updateMessageMetadataCache(received.key.id, received);
+          this.updateMessageMetadataCache(received.key.id, received);
 
           const isMedia =
             received?.message?.imageMessage ||
@@ -1292,7 +1290,7 @@ export class BaileysStartupService extends ChannelStartupService {
                 'buffer',
                 {},
                 {
-                  logger: P({ level: 'error', enabled: false }) as any,
+                  logger: P({ level: 'error' }) as any,
                   reuploadRequest: this.client.updateMediaMessage,
                 },
               );
@@ -1302,26 +1300,25 @@ export class BaileysStartupService extends ChannelStartupService {
           }
 
           // this.logger.log(messageRaw);
+          this.logger.log(`Message received at ${received.key.remoteJid} from ${received.key.participant}`);
+          this.logger.info(`Message: '${messageRaw.message?.conversation?.substring(0,10)}'...`);
+
+          // this.logger.log(`Message received ${received.key.remoteJid} - preview ${received.message.extendedTextMessage.text.split('\n')[0]}`);
 
           this.sendDataWebhook(Events.MESSAGES_UPSERT, messageRaw);
 
-          await chatbotController.emit({
-            instance: { instanceName: this.instance.name, instanceId: this.instanceId },
-            remoteJid: messageRaw.key.remoteJid,
-            msg: messageRaw,
-            pushName: messageRaw.pushName,
-          });
+          // await chatbotController.emit({
+          //   instance: { instanceName: this.instance.name, instanceId: this.instanceId },
+          //   remoteJid: messageRaw.key.remoteJid,
+          //   msg: messageRaw,
+          //   pushName: messageRaw.pushName,
+          // });
 
           const contact = await this.prismaRepository.contact.findFirst({
             where: { remoteJid: received.key.remoteJid, instanceId: this.instanceId },
           });
 
-          const contactRaw: {
-            remoteJid: string;
-            pushName: string;
-            profilePicUrl?: string;
-            instanceId: string;
-          } = {
+          const contactRaw: { remoteJid: string; pushName: string; profilePicUrl?: string; instanceId: string } = {
             remoteJid: received.key.remoteJid,
             pushName: received.key.fromMe ? '' : received.key.fromMe == null ? '' : received.pushName,
             // profilePicUrl: (await this.profilePicture(received.key.remoteJid)).profilePictureUrl,
@@ -1345,12 +1342,7 @@ export class BaileysStartupService extends ChannelStartupService {
 
             if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS)
               await this.prismaRepository.contact.upsert({
-                where: {
-                  remoteJid_instanceId: {
-                    remoteJid: contactRaw.remoteJid,
-                    instanceId: contactRaw.instanceId,
-                  },
-                },
+                where: { remoteJid_instanceId: { remoteJid: contactRaw.remoteJid, instanceId: contactRaw.instanceId } },
                 create: contactRaw,
                 update: contactRaw,
               });
@@ -1542,81 +1534,81 @@ export class BaileysStartupService extends ChannelStartupService {
     },
   };
 
-  // private readonly labelHandle = {
-  //     [Events.LABELS_EDIT]: async (label: Label) => {
-  //         const labelsRepository = await this.prismaRepository.label.findMany({
-  //             where: {instanceId: this.instanceId},
-  //         });
-  //
-  //         const savedLabel = labelsRepository.find((l) => l.labelId === label.id);
-  //         if (label.deleted && savedLabel) {
-  //             await this.prismaRepository.label.delete({
-  //                 where: {labelId_instanceId: {instanceId: this.instanceId, labelId: label.id}},
-  //             });
-  //             this.sendDataWebhook(Events.LABELS_EDIT, {...label, instance: this.instance.name});
-  //             return;
-  //         }
-  //
-  //         const labelName = label.name.replace(/[^\x20-\x7E]/g, '');
-  //         if (!savedLabel || savedLabel.color !== `${label.color}` || savedLabel.name !== labelName) {
-  //             if (this.configService.get<Database>('DATABASE').SAVE_DATA.LABELS) {
-  //                 const labelData = {
-  //                     color: `${label.color}`,
-  //                     name: labelName,
-  //                     labelId: label.id,
-  //                     predefinedId: label.predefinedId,
-  //                     instanceId: this.instanceId,
-  //                 };
-  //                 await this.prismaRepository.label.upsert({
-  //                     where: {
-  //                         labelId_instanceId: {
-  //                             instanceId: labelData.instanceId,
-  //                             labelId: labelData.labelId,
-  //                         },
-  //                     },
-  //                     update: labelData,
-  //                     create: labelData,
-  //                 });
-  //             }
-  //             this.sendDataWebhook(Events.LABELS_EDIT, {...label, instance: this.instance.name});
-  //         }
-  //     },
-  //
-  //     [Events.LABELS_ASSOCIATION]: async (
-  //         data: { association: LabelAssociation; type: 'remove' | 'add' },
-  //         database: Database,
-  //     ) => {
-  //         if (database.SAVE_DATA.CHATS) {
-  //             const chats = await this.prismaRepository.chat.findMany({
-  //                 where: {instanceId: this.instanceId},
-  //             });
-  //             const chat = chats.find((c) => c.remoteJid === data.association.chatId);
-  //             if (chat) {
-  //                 const labelsArray = Array.isArray(chat.labels) ? chat.labels.map((event) => String(event)) : [];
-  //                 let labels = [...labelsArray];
-  //
-  //                 if (data.type === 'remove') {
-  //                     labels = labels.filter((label) => label !== data.association.labelId);
-  //                 } else if (data.type === 'add') {
-  //                     labels = [...labels, data.association.labelId];
-  //                 }
-  //                 await this.prismaRepository.chat.update({
-  //                     where: {id: chat.id},
-  //                     data: {
-  //                         labels,
-  //                     },
-  //                 });
-  //             }
-  //         }
-  //
-  //         this.sendDataWebhook(Events.LABELS_ASSOCIATION, {
-  //             instance: this.instance.name,
-  //             type: data.type,
-  //             chatId: data.association.chatId,
-  //             labelId: data.association.labelId,
-  //         });
-  //     },
-  // };
+  private readonly labelHandle = {
+    [Events.LABELS_EDIT]: async (label: Label) => {
+      const labelsRepository = await this.prismaRepository.label.findMany({
+        where: { instanceId: this.instanceId },
+      });
+
+      const savedLabel = labelsRepository.find((l) => l.labelId === label.id);
+      if (label.deleted && savedLabel) {
+        await this.prismaRepository.label.delete({
+          where: { labelId_instanceId: { instanceId: this.instanceId, labelId: label.id } },
+        });
+        this.sendDataWebhook(Events.LABELS_EDIT, { ...label, instance: this.instance.name });
+        return;
+      }
+
+      const labelName = label.name.replace(/[^\x20-\x7E]/g, '');
+      if (!savedLabel || savedLabel.color !== `${label.color}` || savedLabel.name !== labelName) {
+        if (this.configService.get<Database>('DATABASE').SAVE_DATA.LABELS) {
+          const labelData = {
+            color: `${label.color}`,
+            name: labelName,
+            labelId: label.id,
+            predefinedId: label.predefinedId,
+            instanceId: this.instanceId,
+          };
+          await this.prismaRepository.label.upsert({
+            where: {
+              labelId_instanceId: {
+                instanceId: labelData.instanceId,
+                labelId: labelData.labelId,
+              },
+            },
+            update: labelData,
+            create: labelData,
+          });
+        }
+        this.sendDataWebhook(Events.LABELS_EDIT, { ...label, instance: this.instance.name });
+      }
+    },
+
+    [Events.LABELS_ASSOCIATION]: async (
+      data: { association: LabelAssociation; type: 'remove' | 'add' },
+      database: Database,
+    ) => {
+      if (database.SAVE_DATA.CHATS) {
+        const chats = await this.prismaRepository.chat.findMany({
+          where: { instanceId: this.instanceId },
+        });
+        const chat = chats.find((c) => c.remoteJid === data.association.chatId);
+        if (chat) {
+          const labelsArray = Array.isArray(chat.labels) ? chat.labels.map((event) => String(event)) : [];
+          let labels = [...labelsArray];
+
+          if (data.type === 'remove') {
+            labels = labels.filter((label) => label !== data.association.labelId);
+          } else if (data.type === 'add') {
+            labels = [...labels, data.association.labelId];
+          }
+          await this.prismaRepository.chat.update({
+            where: { id: chat.id },
+            data: {
+              labels,
+            },
+          });
+        }
+      }
+
+      this.sendDataWebhook(Events.LABELS_ASSOCIATION, {
+        instance: this.instance.name,
+        type: data.type,
+        chatId: data.association.chatId,
+        labelId: data.association.labelId,
+      });
+    },
+  };
 
   private eventHandler() {
     this.client.ev.process(async (events) => {
@@ -1636,10 +1628,10 @@ export class BaileysStartupService extends ChannelStartupService {
               text: settings.msgCall,
             });
 
-            this.client.ev.emit('messages.upsert', {
-              messages: [msg],
-              type: 'notify',
-            });
+            // this.client.ev.emit('messages.upsert', {
+            //   messages: [msg],
+            //   type: 'notify',
+            // });
           }
 
           this.sendDataWebhook(Events.CALL, call);
@@ -1659,41 +1651,42 @@ export class BaileysStartupService extends ChannelStartupService {
         }
 
         if (events['messages.upsert']) {
+          this.logger.log('messages.upsert event received');
           const payload = events['messages.upsert'];
           this.messageHandle['messages.upsert'](payload, settings);
         }
 
-        // if (events['messages.update']) {
-        //     const payload = events['messages.update'];
-        //     this.messageHandle['messages.update'](payload, settings);
-        // }
+        if (events['messages.update']) {
+          const payload = events['messages.update'];
+          this.messageHandle['messages.update'](payload, settings);
+        }
 
-        // if (events['message-receipt.update']) {
-        //     const payload = events['message-receipt.update'] as MessageUserReceiptUpdate[];
-        //     const remotesJidMap: Record<string, number> = {};
-        //
-        //     for (const event of payload) {
-        //         if (typeof event.key.remoteJid === 'string' && typeof event.receipt.readTimestamp === 'number') {
-        //             remotesJidMap[event.key.remoteJid] = event.receipt.readTimestamp;
-        //         }
-        //     }
-        //
-        //     await Promise.all(
-        //         Object.keys(remotesJidMap).map(async (remoteJid) =>
-        //             this.updateMessagesReadedByTimestamp(remoteJid, remotesJidMap[remoteJid]),
-        //         ),
-        //     );
-        // }
-        //
-        // if (events['presence.update']) {
-        //     const payload = events['presence.update'];
-        //
-        //     if (settings?.groupsIgnore && payload.id.includes('@g.us')) {
-        //         return;
-        //     }
-        //
-        //     this.sendDataWebhook(Events.PRESENCE_UPDATE, payload);
-        // }
+        if (events['message-receipt.update']) {
+          const payload = events['message-receipt.update'] as MessageUserReceiptUpdate[];
+          const remotesJidMap: Record<string, number> = {};
+
+          for (const event of payload) {
+            if (typeof event.key.remoteJid === 'string' && typeof event.receipt.readTimestamp === 'number') {
+              remotesJidMap[event.key.remoteJid] = event.receipt.readTimestamp;
+            }
+          }
+
+          await Promise.all(
+            Object.keys(remotesJidMap).map(async (remoteJid) =>
+              this.updateMessagesReadedByTimestamp(remoteJid, remotesJidMap[remoteJid]),
+            ),
+          );
+        }
+
+        if (events['presence.update']) {
+          const payload = events['presence.update'];
+
+          if (settings?.groupsIgnore && payload.id.includes('@g.us')) {
+            return;
+          }
+
+          this.sendDataWebhook(Events.PRESENCE_UPDATE, payload);
+        }
 
         if (!settings?.groupsIgnore) {
           if (events['groups.upsert']) {
@@ -1717,37 +1710,37 @@ export class BaileysStartupService extends ChannelStartupService {
           this.chatHandle['chats.upsert'](payload);
         }
 
-        // if (events['chats.update']) {
-        //     const payload = events['chats.update'];
-        //     this.chatHandle['chats.update'](payload);
-        // }
-        //
-        // if (events['chats.delete']) {
-        //     const payload = events['chats.delete'];
-        //     this.chatHandle['chats.delete'](payload);
-        // }
-        //
-        // if (events['contacts.upsert']) {
-        //     const payload = events['contacts.upsert'];
-        //     this.contactHandle['contacts.upsert'](payload);
-        // }
+        if (events['chats.update']) {
+          const payload = events['chats.update'];
+          this.chatHandle['chats.update'](payload);
+        }
 
-        // if (events['contacts.update']) {
-        //     const payload = events['contacts.update'];
-        //     this.contactHandle['contacts.update'](payload);
-        // }
+        if (events['chats.delete']) {
+          const payload = events['chats.delete'];
+          this.chatHandle['chats.delete'](payload);
+        }
 
-        // if (events[Events.LABELS_ASSOCIATION]) {
-        //     const payload = events[Events.LABELS_ASSOCIATION];
-        //     this.labelHandle[Events.LABELS_ASSOCIATION](payload, database);
-        //     return;
-        // }
-        //
-        // if (events[Events.LABELS_EDIT]) {
-        //     const payload = events[Events.LABELS_EDIT];
-        //     this.labelHandle[Events.LABELS_EDIT](payload);
-        //     return;
-        // }
+        if (events['contacts.upsert']) {
+          const payload = events['contacts.upsert'];
+          this.contactHandle['contacts.upsert'](payload);
+        }
+
+        if (events['contacts.update']) {
+          const payload = events['contacts.update'];
+          this.contactHandle['contacts.update'](payload);
+        }
+
+        if (events[Events.LABELS_ASSOCIATION]) {
+          const payload = events[Events.LABELS_ASSOCIATION];
+          this.labelHandle[Events.LABELS_ASSOCIATION](payload, database);
+          return;
+        }
+
+        if (events[Events.LABELS_EDIT]) {
+          const payload = events[Events.LABELS_EDIT];
+          this.labelHandle[Events.LABELS_EDIT](payload);
+          return;
+        }
       }
     });
   }
@@ -1876,10 +1869,8 @@ export class BaileysStartupService extends ChannelStartupService {
     const jid = this.createJid(number);
 
     try {
-
-      const call = undefined;
-      // const call = await this.client.offerCall(jid, isVideo);
-      // setTimeout(() => this.client.terminateCall(call.id, call.to), callDuration * 1000);
+      const call = await this.client.offerCall(jid, isVideo);
+      setTimeout(() => this.client.terminateCall(call.id, call.to), callDuration * 1000);
 
       return call;
     } catch (error) {
@@ -2154,22 +2145,22 @@ export class BaileysStartupService extends ChannelStartupService {
         throw new BadRequestException('Message not found');
       }
 
-      let group;
-      if (isJidGroup(sender)) {
-        try {
-          const cache = this.configService.get<CacheConf>('CACHE');
-          if (!cache.REDIS.ENABLED && !cache.LOCAL.ENABLED) group = await this.findGroup({ groupJid: sender }, 'inner');
-          else group = await this.getGroupMetadataCache(sender);
-        } catch (error) {
-          throw new NotFoundException('Group not found');
-        }
-
-        if (!group) {
-          throw new NotFoundException('Group not found');
-        }
-      }
+      // let group;
+      // if (isJidGroup(sender)) {
+      //   try {
+      //     const cache = this.configService.get<CacheConf>('CACHE');
+      //     if (!cache.REDIS.ENABLED && !cache.LOCAL.ENABLED) group = await this.findGroup({ groupJid: sender }, 'inner');
+      //     else group = await this.getGroupMetadataCache(sender);
+      //   } catch (error) {
+      //     throw new NotFoundException('Group not found');
+      //   }
+      //
+      //   if (!group) {
+      //     throw new NotFoundException('Group not found');
+      //   }
+      // }
       let quoted: WAMessage;
-      this.logger.log('Group ${group.name} - exp duration: ${group.ephemeralDuration}');
+      // this.logger.log('Group ${group.name} - exp duration: ${group.ephemeralDuration}');
       const message = {
         forward: {
           // key: { remoteJid: this.instance.wuid, fromMe: true } as proto.MessageKey,
@@ -2184,7 +2175,7 @@ export class BaileysStartupService extends ChannelStartupService {
         true,
         quoted,
         messageJid,
-        group?.ephemeralDuration,// posso setar um valor default aqui
+          604800
       ); // Adicionei o messageJid para testar se é útil
 
 
@@ -4440,7 +4431,6 @@ export class BaileysStartupService extends ChannelStartupService {
       throw new BadRequestException('Unable to leave the group', error.toString());
     }
   }
-
   public async templateMessage() {
     throw new Error('Method not available in the Baileys service');
   }

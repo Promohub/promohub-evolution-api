@@ -292,8 +292,9 @@ export class BusinessStartupService extends ChannelStartupService {
     try {
       let messageRaw: any;
       let pushName: any;
-
+      this.logger.log("message received")
       if (received.contacts) pushName = received.contacts[0].profile.name;
+      this.logger.info(`message from ${pushName}`)
 
       if (received.messages) {
         const key = {
@@ -445,7 +446,7 @@ export class BusinessStartupService extends ChannelStartupService {
         }
 
         if (this.localSettings.readMessages) {
-          // await this.client.readMessages([received.key]);
+          this.client.readMessages([received.key]);
         }
 
         if (this.configService.get<Openai>('OPENAI').ENABLED) {
@@ -473,6 +474,7 @@ export class BusinessStartupService extends ChannelStartupService {
         }
 
         // this.logger.log(messageRaw);
+
 
         this.sendDataWebhook(Events.MESSAGES_UPSERT, messageRaw);
 

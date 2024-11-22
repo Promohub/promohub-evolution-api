@@ -24,6 +24,7 @@ services:
     container_name: redis
     command: >
       redis-server --port 6379 --appendonly yes
+    restart: always
     volumes:
       - evolution_redis:/data
     ports:
@@ -39,7 +40,7 @@ services:
     ports:
       - 5432:5432
     environment:
-      - POSTGRES_PASSWORD=PASSWORD
+      - POSTGRES_PASSWORD=root
     volumes:
       - postgres_data:/var/lib/postgresql/data
     expose:
